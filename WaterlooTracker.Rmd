@@ -263,7 +263,7 @@ fig <- plot_ly(x = ~dailyPHU$Case_Reported_Date, y = ~dailyPHU$csum, type = 'sca
 
 fig <- fig %>% layout(xaxis = list(title = '', 
                                    rangeselector = list(buttons = buttons_time)),
-                      yaxis = list(title = 'Cumulative Case'), 
+                      yaxis = list(title = 'Cumulative Cases'), 
                       hovermode = "x unified", 
                       hoverlabel=list(bgcolor="black"), 
                       
@@ -276,7 +276,7 @@ fig
 ```{r}
 fig <- fig %>% layout(yaxis = list(type = "log"))
 fig <- fig %>% layout(xaxis = list(title = ""),
-                      yaxis = list (title = "Cumulative Case Counts (Log)"))
+                      yaxis = list (title = "Cumulative Cases (Log)"))
 fig
 ```
 
