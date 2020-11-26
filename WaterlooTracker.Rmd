@@ -449,30 +449,22 @@ outcomes_changes <- outcomes %>%
                 new_resolvedPct = round((Resolved / lag(Resolved) - 1)* 100,2))
 
 
-fig <- plot_ly(data = outcomes_changes, x = ~Case_Reported_Date, y = ~new_deaths, 
-               type = 'scatter',
-               mode = "lines+markers", 
-               name = "New Deaths", 
-               marker = list(color = "#FF5959"), 
-               line = list(color = "#FF5959")) %>% 
+plot_ly(data = outcomes_changes, x = ~Case_Reported_Date, y = ~new_deaths, 
+        type = 'scatter',
+        mode = "lines+markers", 
+        name = "New Deaths", 
+        marker = list(color = "#FF5959", size = 1), 
+        line = list(color = "#FF5959", width = 1)) %>% 
   
   add_trace(y = ~new_resolved, 
             name = "New Resolved", 
-            marker = list(color = "#6EC5E9"), 
-            line = list(color = "#6EC5E9"))
-
-
-fig <- fig %>% layout(title = "", 
-                      xaxis = list(title = ''),
-                      yaxis = list(title = 'Absolute Change in Cases'), 
-                      hovermode = "x unified",
-                      barmode = 'stack') %>% 
+            marker = list(color = "#6EC5E9", size = 1), 
+            line = list(color = "#6EC5E9", width = 1))%>% 
   
-    layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time)))
-  
-
-fig 
+  layout(title = "", 
+         xaxis = list(title = '', rangeselector = list(buttons = buttons_time)),
+         yaxis = list(title = 'Absolute Change in Cases'), 
+         hovermode = "x unified")
 ```
 
 ### <b> Cumulative </b> 
