@@ -179,65 +179,33 @@ Row {.tabset .tabset-fade}
 ```{r}
 #calculating the growth absolute and relative change in cases
 dailyPHU <- data.frame(TargetPHU %>% 
-  dplyr::arrange(Case_Reported_Date) %>% 
-  dplyr::group_by(Case_Reported_Date) %>% 
+  dplyr::arrange(Accurate_Episode_Date) %>% 
+  dplyr::group_by(Accurate_Episode_Date) %>% 
   dplyr::count(name = "Cases") %>% 
-  dplyr::ungroup() 
+  dplyr::ungroup()
 )
 
 dailyPHU <- dailyPHU %>% 
-  dplyr::mutate(d_diff = as.numeric(Case_Reported_Date - lag(Case_Reported_Date)),
+  dplyr::mutate(d_diff = as.numeric(Accurate_Episode_Date - lag(Accurate_Episode_Date)),
                 csum = cumsum(Cases),
                 diff_growth = Cases - lag(Cases), 
                 growth_rate_pct = round((diff_growth/d_diff)/Cases * 100, 2)
   )
 
-#calculating rolling average 
-rolling.avg <- dailyPHU %>% 
-  dplyr::select(Case_Reported_Date, Cases) %>% 
-  dplyr::mutate(cp.7 = round(zoo::rollmean(Cases, k = 7, fill = NA),0),
-                cp.14 = round(zoo::rollmean(Cases, k = 14, fill = NA),0), 
-                cp.28 = round(zoo::rollmean(Cases, k = 28, fill = NA),0), 
-                cp.56 = round(zoo::rollmean(Cases, k = 56, fill = NA),0)
-)
 ```
 
 
 ### <b> Daily Cases </b> 
 ```{r}
-date <- c("2020-03-23", "2020-07-24", "2020-10-19")
-status <- c("State of Emergency Declared", "Stage 3 Reopening", "Stage 2")
-
-timeline <- data.frame(date, status)
-timeline$date <- as.Date(timeline$date, format = "%Y-%m-%d")
-
-a <- list(
-  x = timeline$date,
-  y = 50,
-  text = timeline$status,
-  xref = "x",
-  yref = "y",
-  font = list(color = "Black",
-              size = 12), 
-  showarrow = TRUE,
-  arrowcolor = "Black",
-  arrowsize = 2,
-  arrowwidth = 1,
-  arrowhead = 2,
-  ax = 0,
-  ay = -50
-)
-
-
 plot_ly(data = dailyPHU, 
-        x = ~Case_Reported_Date, 
+        x = ~Accurate_Episode_Date, 
         y= ~Cases, 
         type = 'bar', name = 'Confirmed Positive',
         marker = list(color = '#2858a6'), 
         showlegend = F, 
         
         hoverinfo = 'text', 
-        text = ~paste(Case_Reported_Date, "<br>", 
+        text = ~paste(Accurate_Episode_Date, "<br>", 
                       Cases, ' New Cases', sep = "")
         
         ) %>% 
@@ -258,7 +226,7 @@ plot_ly(data = dailyPHU,
 ### <b> The Curve - Linear Scale </b>
 
 ```{r}
-fig <- plot_ly(x = ~dailyPHU$Case_Reported_Date, y = ~dailyPHU$csum, type = 'scatter', mode = 'none', name = 'Total Cases', fill = 'tozeroy',
+fig <- plot_ly(x = ~dailyPHU$Accurate_Episode_Date, y = ~dailyPHU$csum, type = 'scatter', mode = 'none', name = 'Total Cases', fill = 'tozeroy',
                fillcolor = '#2858a6')
 
 fig <- fig %>% layout(xaxis = list(title = '', 
@@ -283,47 +251,80 @@ fig
 ### <b> Rolling Averages </b>
 
 ```{r}
-plot_ly(rolling.avg, x = ~Case_Reported_Date, y = ~cp.7, name = "7 Day Average",
-        type = 'scatter', mode = 'lines', fill = 'tozeroy', line = list(width = 0.1)) %>% 
+dailyPHU %>% 
+  dplyr::select(Accurate_Episode_Date, Cases) %>% 
+  dplyr::mutate(MAV7 = round(zoo::rollmean(Cases, k = 7, fill = NA),0),
+                MAV15 = round(zoo::rollmean(Cases, k = 15, fill = NA),0), 
+                MAV29 = round(zoo::rollmean(Cases, k = 29, fill = NA),0)) %>% 
+  data.frame() %>% 
+plot_ly(x = ~Accurate_Episode_Date, 
+        y = ~MAV7, 
+        name = "7 Day Average",
+        type = 'scatter', 
+        mode = 'lines', 
+        fill = 'tozeroy', 
+        fillcolor = 'rgba(255, 89, 89, 0.7)',
+        opacity = 0.25, 
+        line = list(width = 0.1, color = 'rgba(255, 89, 89, 0.7)')) %>% 
   
-  add_trace(y = ~cp.14, name = "14 Day Average") %>% 
-  add_trace(y = ~cp.28, name = "28 Day Average ") %>% 
+  add_trace(y = ~MAV15, 
+            name = "15 Day Average", 
+            fillcolor = 'rgba(255, 197, 108, 0.7)',
+            opacity = 0.25, 
+            line = list(color = 'rgba(255, 197, 108, 0.7)')) %>% 
+  
+  add_trace(y = ~MAV29, 
+            name = "29 Day Average",
+            fillcolor = 'rgba(110, 197, 233, 0.7)',
+            opacity = 0.25,
+            line = list(color = 'rgba(110, 197, 233, 0.7)')) %>% 
   
   layout(title = "",
-         xaxis = list(title = ""), 
+         xaxis = list(title = "", rangeselector = list(buttons = buttons_time)), 
          yaxis = list(title = "New Cases"), 
-         hovermode = "x unified") %>% 
-  
-    layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time
-  )))
+         hovermode = "x unified", 
+         hoverlabel=list(bgcolor="black", bordercolor = "white"), 
+         legend=list(title=list(text='<b> Moving Averages: </b>')))
 ```
 
 ### <b> Rolling Median </b>
 
 ```{r}
-rolling.avg <- dailyPHU %>% 
-  dplyr::select(Case_Reported_Date, Cases) %>% 
-  dplyr::mutate(cp.7 = round(zoo::rollmedian(Cases, k = 7, fill = NA),0),
-                cp.14 = round(zoo::rollmedian(Cases, k = 14, fill = NA),0), 
-                cp.28 = round(zoo::rollmedian(Cases, k = 28, fill = NA),0)
-)
-
-plot_ly(rolling.avg, x = ~Case_Reported_Date, y = ~cp.7, name = "7 Day Median Trend",
-        type = 'scatter', mode = 'lines', fill = 'tozeroy', line = list(width = 0.1)) %>% 
+dailyPHU %>% 
+  dplyr::select(Accurate_Episode_Date, Cases) %>% 
+  dplyr::mutate(Rm7 = round(zoo::rollmean(Cases, k = 7, fill = NA),0),
+                Rm15 = round(zoo::rollmean(Cases, k = 15, fill = NA),0), 
+                Rm29 = round(zoo::rollmean(Cases, k = 29, fill = NA),0)) %>% 
+  data.frame() %>% 
   
-  add_trace(y = ~cp.14, name = "14 Day Median Trend") %>% 
-  add_trace(y = ~cp.28, name = "28 Day Median Trend") %>% 
-
+  plot_ly(x = ~Accurate_Episode_Date, 
+          y = ~Rm7, 
+          name = "7 Day Trend",
+          type = 'scatter', 
+          mode = 'lines', 
+          fill = 'tozeroy', 
+          fillcolor = 'rgba(255, 89, 89, 0.7)',
+          opacity = 0.25, 
+          line = list(width = 0.1, color = 'rgba(255, 89, 89, 0.7)')) %>% 
+  
+  add_trace(y = ~Rm15, 
+            name = "15 Day Trend", 
+            fillcolor = 'rgba(255, 197, 108, 0.7)',
+            opacity = 0.25, 
+            line = list(width = 0.1, color = 'rgba(255, 197, 108, 0.7)')) %>% 
+  
+  add_trace(y = ~Rm29, 
+            name = "29 Day Trend", 
+            fillcolor = 'rgba(110, 197, 233, 0.7)',
+            opacity = 0.25, 
+            line = list(width = 0.1, color = 'rgba(110, 197, 233, 0.7)')) %>% 
+  
   layout(title = "",
-         xaxis = list(title = " "), 
+         xaxis = list(title = " ", rangeselector = list(
+           buttons = buttons_time)), 
          yaxis = list(title = "New Cases"), 
-         hovermode = "x unified") %>% 
-  
-    layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time
-  )))
-  
+         hovermode = "x unified", 
+         legend=list(title=list(text='<b> Rolling Medians </b>'))) 
 ```
 
 Outcomes 
@@ -331,15 +332,14 @@ Outcomes
 
 ```{r}
 outcomes <- TargetPHU %>% 
-  dplyr::select(Row_ID,Case_Reported_Date, Outcome1) %>% 
-  group_by(Case_Reported_Date, Outcome1) %>% 
-  summarise(count = n(), .groups = 'keep') %>%
+  dplyr::select(Row_ID,Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::group_by(Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::summarise(count = n(), .groups = 'keep') %>%
   dplyr::ungroup() %>% 
-  spread(Outcome1, count, fill = 0) %>% 
-  as.data.frame()
-
-outcomes <- outcomes %>% 
-  dplyr::rename(Unresolved = 3)
+  tidyr::pivot_wider(names_from = Outcome1, values_from = count,
+                     values_fill = 0) %>% 
+  as.data.frame() %>% 
+  dplyr::rename(Active = "Not Resolved")
 ```
 
 
@@ -348,7 +348,7 @@ Row
 ### Current Active Cases 
 
 ```{r}
-valueBox(format(round(as.numeric(sum(outcomes$Unresolved)), 0), nsmall=0, big.mark=","), icon = "ion-android-person-add")
+valueBox(format(round(as.numeric(sum(outcomes$Active)), 0), nsmall=0, big.mark=","), icon = "ion-android-person-add")
 ```
 
 ### Total Resolved 
@@ -379,113 +379,259 @@ valueBox(fatality_rate_per_capita_K, icon = "ion-stats-bars")
 
 Row {.tabset .tabset-fade}
 -------------------------------------
+
 ### <b> Outcome Breakdown </b> 
 ```{r}
-outcomeBreakdown <- TargetPHU %>% 
+TargetPHU %>% 
   dplyr::group_by(Outcome1) %>% 
-  dplyr::summarise(n = n(), .groups = 'keep') %>% 
+  dplyr::summarise(n = n(), .groups = 'keep') %>%
   dplyr::ungroup() %>% 
-  data.frame()
+  dplyr::rename(Outcome = Outcome1) %>% 
+  dplyr::mutate(Outcome = case_when(
+    .$Outcome == "Not Resolved" ~ "Active", 
+    TRUE ~ as.character(Outcome))) %>% 
+  data.frame() %>% 
 
-colors <- c('#FF5959', "#FFC56C", "#6EC5E9")
-
-fig <- plot_ly(outcomeBreakdown, labels = ~Outcome1, values = ~n, type = 'pie',
+plot_ly(labels = ~Outcome, values = ~n, type = 'pie',
         textposition = 'inside',
         textinfo = 'label+percent',
         insidetextfont = list(color = '#FFFFFF'),
-        hoverinfo = 'text',
-        text = ~paste(n, ' cases'),
         
-        marker = list(colors = colors,
+        text = ~paste(format(n, big.mark = ","), Outcome,
+                      sep = " "),
+        hoverinfo = 'text',
+        
+        marker = list(colors = c('#FF5959', "#FFC56C", "#6EC5E9"),
                       line = list(color = '#FFFFFF', width = 1)),
-        #The 'pull' attribute can also be used to create space between the sectors
-        showlegend = FALSE)
-
-fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-
-fig
+        showlegend = FALSE) %>% 
+  
+  layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
 ```
 
 
 ### <b> Daily Outcomes </b> 
 ```{r}
 #Cases by Outcome 
-fig <- plot_ly(x = ~outcomes$Case_Reported_Date, y = ~outcomes$Unresolved, type = 'bar', name = 'Active', 
-               marker = list(color = '#FFC56C'))
 
-fig <- fig %>% add_trace(x = ~outcomes$Case_Reported_Date, y = ~outcomes$Resolved, name = 'Resolved', 
-                         marker = list(color = '#6EC5E9'))
+TargetPHU %>% 
+  dplyr::select(Row_ID,Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::group_by(Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::summarise(count = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  tidyr::spread(Outcome1, count, fill = 0) %>% 
+  as.data.frame() %>% 
+  dplyr::rename(Active = 3) %>% 
 
-fig <- fig %>% add_trace(x = ~outcomes$Case_Reported_Date, y = ~outcomes$Fatal, name = 'Deaths', 
-                         marker = list(color ='#FF5959'))
-
-fig <- fig %>% layout(title = "", 
-                      xaxis = list(title = ''),
-                      yaxis = list(title = 'Cumulative Case Counts'), 
-                      hovermode = "x unified",
-                      barmode = 'stack')
-
-fig <- fig %>%   layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time
-  )))
+plot_ly(x = ~Accurate_Episode_Date, 
+        y = ~Active, type = 'bar', 
+        name = 'Active', 
+        marker = list(color = '#FFC56C'))%>% 
   
-
-fig 
-```
-
-### <b> Absolute Change </b>
-```{r}
-outcomes_changes <- outcomes %>% 
-  dplyr::mutate(d_diff = as.numeric(Case_Reported_Date - lag(Case_Reported_Date)),
-                total_deaths = cumsum(Fatal), 
-                total_unresolved = cumsum(Unresolved), 
-                total_resolved = cumsum(Resolved),
-                
-                new_deaths = Fatal - lag(Fatal), 
-                new_resolved = Resolved - lag(Resolved), 
-                
-                new_deathsPct = round((Fatal / lag(Fatal) - 1)* 100,2),
-                new_resolvedPct = round((Resolved / lag(Resolved) - 1)* 100,2))
-
-
-plot_ly(data = outcomes_changes, x = ~Case_Reported_Date, y = ~new_deaths, 
-        type = 'scatter',
-        mode = "lines+markers", 
-        name = "New Deaths", 
-        marker = list(color = "#FF5959", size = 1), 
-        line = list(color = "#FF5959", width = 1)) %>% 
+  add_trace(y = ~Resolved, 
+            name = 'Resolved', 
+            marker = list(color = '#6EC5E9')) %>% 
   
-  add_trace(y = ~new_resolved, 
-            name = "New Resolved", 
-            marker = list(color = "#6EC5E9", size = 1), 
-            line = list(color = "#6EC5E9", width = 1))%>% 
+  add_trace(y = ~Fatal, 
+            name = 'Deaths', 
+            marker = list(color ='#FF5959')) %>% 
   
   layout(title = "", 
          xaxis = list(title = '', rangeselector = list(buttons = buttons_time)),
-         yaxis = list(title = 'Absolute Change in Cases'), 
-         hovermode = "x unified")
+         yaxis = list(title = 'Daily Outcomes (n)'),
+         hovermode = "x unified",
+         barmode = 'stack', 
+         legend=list(title=list(text='<b> Outcome: </b>')))
 ```
 
-### <b> Cumulative </b> 
+### <b> Daily Outcome Changes </b>
+```{r}
+TargetPHU %>% 
+  dplyr::select(Row_ID,Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::group_by(Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::summarise(count = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  tidyr::spread(Outcome1, count, fill = 0) %>% 
+  as.data.frame() %>% 
+  dplyr::select(Accurate_Episode_Date, Fatal, Resolved) %>% 
+  dplyr::mutate(d_diff = as.numeric(Accurate_Episode_Date - lag(Accurate_Episode_Date, n = 1)),
+                new_deaths = Fatal - lag(Fatal, n = 1), 
+                new_resolved = Resolved - lag(Resolved, n = 1))  %>% 
+
+
+plot_ly(x = ~Accurate_Episode_Date, 
+        y = ~new_resolved, 
+        type = 'scatter',
+        mode = "lines", 
+        name = "Resolved", 
+        line = list(color = "#6EC5E9", width = 1), 
+        text = ~paste("Change in Resolves from Yesterday: ", new_resolved ,sep = ""),
+        hoverinfo = "text") %>% 
+  
+  add_trace(y = ~new_deaths, 
+            name = "Deaths", 
+            line = list(color = "#FF5959", width = 1), 
+            text = ~paste("Change in Deaths from Yesterday: ", new_deaths ,sep = ""),
+            hoverinfo = "text") %>% 
+  layout(title = "", 
+         xaxis = list(title = '', rangeselector = list(buttons = buttons_time)),
+         yaxis = list(title = 'Daily Outcomes (Absolute Change)', 
+                      dtick = 25, 
+                      tick0 = 0, 
+                      tickmode = "linear"), 
+         hovermode = "x unified",
+         barmode = 'stack', 
+         legend=list(title=list(text='<b> Daily Outcomes: </b>'))) 
+
+```
+
+
+### <b> Daily Outcome Composition </b> 
 
 ```{r}
-fig <- plot_ly(x = ~outcomes_changes$Case_Reported_Date, y = ~outcomes_changes$total_resolved, type = 'bar', name = 'Resolved', 
-               marker = list(color = '#6EC5E9'))
-
-fig <- fig %>% add_trace(x = ~outcomes_changes$Case_Reported_Date, y = ~outcomes_changes$total_deaths, name = 'Deaths', 
-                         marker = list(color ='#FF5959'))
-
-fig <- fig %>% layout(title = "", 
-                      xaxis = list(title = ''),
-                      yaxis = list(title = 'Cumulative Case Counts'), 
-                      hovermode = "x unified",
-                      barmode = 'stack') %>% 
+#daily outcome composition 
+TargetPHU %>% 
+  dplyr::select(Row_ID,Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::group_by(Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::summarise(count = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  tidyr::spread(Outcome1, count, fill = 0) %>% 
+  as.data.frame() %>% 
+  dplyr::rename(Active = 3) %>% 
+  dplyr::mutate(Total=Reduce("+",.[2:4])) %>% 
+  dplyr::mutate(F_pct = round((Fatal/Total)*100,1), 
+                A_pct = round((Active/Total)*100,1), 
+                R_pct = round((Resolved/Total)*100,1)) %>% 
   
-  layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time)))
+  plot_ly(x = ~Accurate_Episode_Date, 
+          y = ~F_pct, 
+          name = "Fatal",
+          type = 'bar', 
+          text = ~paste(Accurate_Episode_Date, "<br>",F_pct, " % Fatal (n = ", Fatal, ")",sep = ""), 
+          hoverinfo = "text", 
+          marker = list(color = '#FF5959')) %>% 
+  
+  add_trace(y = ~R_pct, 
+            type = 'bar', 
+            name = "Resolved", 
+            text = ~paste(Accurate_Episode_Date, "<br>",R_pct, " % Resolved (n = ", Resolved , ")", sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#6EC5E9')) %>% 
+  
+  add_trace(y = ~A_pct, 
+            type = 'bar', 
+            name = "Active", 
+            text = ~paste(Accurate_Episode_Date, "<br>",A_pct, " % Active (n = ", Active, ")", sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#FFC56C')) %>% 
+  
+  
+  layout(title = "",
+         xaxis = list(title = "",  
+                      rangeselector = list(buttons = buttons_time)), 
+         yaxis = list(title = "Frequency (%)",
+                      dtick = 25, 
+                      tick0 = 0.00, 
+                      tickmode = "linear"), 
+         barmode = 'stack',
+         hovermode = "y-unified", 
+         hoverlabel=list(bgcolor="black"),
+         legend = list(title = list(text = '<b> Outcome: </b>')))  
+```
 
-fig
+### <b> Cumulative Outcomes </b> 
+
+```{r}
+TargetPHU %>% 
+  dplyr::select(Row_ID,Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::filter(!Accurate_Episode_Date == "2019-12-25") %>% 
+  group_by(Accurate_Episode_Date, Outcome1) %>% 
+  summarise(count = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  spread(Outcome1, count, fill = 0) %>% 
+  as.data.frame() %>% 
+  #rename third column to unresolved
+  dplyr::rename(Active = 3) %>% 
+  dplyr::select(-Active) %>% 
+  dplyr::mutate(d_diff = as.numeric(Accurate_Episode_Date - lag(Accurate_Episode_Date)),
+                total_deaths = cumsum(Fatal), 
+                total_resolved = cumsum(Resolved)) %>% 
+  dplyr::select(-Fatal, - Resolved ) %>% 
+  
+  plot_ly(x = ~Accurate_Episode_Date, 
+          y = ~total_deaths, 
+          type = 'bar', 
+          name = 'Deaths', 
+          marker = list(color ='#FF5959'),
+          text = ~paste(Accurate_Episode_Date, "<br>",
+                        format(total_deaths, big.mark = ","), " Total Resolved", sep = ""), 
+          hoverinfo = "text") %>% 
+  
+  add_trace(y = ~total_resolved, 
+            name = 'Resolved', 
+            marker = list(color = '#6EC5E9'),
+            text = ~paste(Accurate_Episode_Date, "<br>",
+                          format(total_resolved, big.mark = ","), " Total Deaths", sep = ""), 
+            hoverinfo = "text") %>%
+  
+  layout(title = "", 
+         xaxis = list(title = '', rangeselector = list(
+           buttons = buttons_time)),
+         
+         yaxis = list(title = 'Cumulative (Log)', type = "log"), 
+         hovermode = "x unified",
+         barmode = 'stack', 
+         legend=list(title=list(text='<b> Cumulative Outcomes </b>'))) 
+```
+
+### <b> Outcomes per Capita </b>
+
+```{r}
+# Per Capita Rates 
+TargetPHU %>% 
+  dplyr::select(Row_ID,Accurate_Episode_Date, Outcome1) %>% 
+  dplyr::filter(!Accurate_Episode_Date == "2019-12-25") %>% 
+  group_by(Accurate_Episode_Date, Outcome1) %>% 
+  summarise(count = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  spread(Outcome1, count, fill = 0) %>% 
+  as.data.frame() %>% 
+  #rename third column to unresolved
+  dplyr::rename(Active = 3) %>% 
+  dplyr::select(-Active) %>% 
+  dplyr::mutate(d_diff = as.numeric(Accurate_Episode_Date - lag(Accurate_Episode_Date)),
+                total_deaths = cumsum(Fatal), 
+                total_resolved = cumsum(Resolved)) %>%
+  #per capita rates 
+  dplyr::mutate(per_capita_death_rate = as.integer((total_deaths/POP)*1000000), 
+                per_capita_resolved_rate = as.integer((total_resolved/POP)*1000000)) %>% 
+  dplyr::select(Accurate_Episode_Date, per_capita_death_rate, per_capita_resolved_rate) %>% 
+  
+  plot_ly(x = ~Accurate_Episode_Date, 
+          y = ~per_capita_death_rate, 
+          type = 'bar', 
+          name = 'Deaths', 
+          marker = list(color ='#FF5959'),
+          text = ~paste(Accurate_Episode_Date, "<br>",
+                        format(per_capita_death_rate, big.mark = ","), " Deaths per Capita", sep = ""), 
+          hoverinfo = "text") %>% 
+  
+  
+  add_trace(y = ~per_capita_resolved_rate, 
+            name = 'Resolved', 
+            marker = list(color = '#6EC5E9'),
+            text = ~paste(Accurate_Episode_Date, "<br>",
+                          format(per_capita_resolved_rate, big.mark = ","), " Resolves per Capita", sep = ""), 
+            hoverinfo = "text") %>% 
+  
+  layout(title = "", 
+         xaxis = list(title = '', rangeselector = list(
+           buttons = buttons_time)),
+         
+         yaxis = list(title = 'per Capita Rate', type = "log"), 
+         hovermode = "x unified",
+         barmode = 'stack', 
+         legend=list(title=list(text='<b> Rates per Capita (1M): </b>')))
 ```
 
 
@@ -497,19 +643,21 @@ Case Acquisition
 
 ```{r}
 acqBreakdown <- TargetPHU %>% 
+  
+    dplyr::mutate(Case_AcquisitionInfo = case_when(
+      .$Case_AcquisitionInfo == "OB" ~ "Outbreak Related", 
+      .$Case_AcquisitionInfo == "CC" ~ "Close Contact",
+      .$Case_AcquisitionInfo == "TRAVEL" ~ "Travel",
+      .$Case_AcquisitionInfo == "NO KNOWN EPI LINK" ~ "Unknown",
+      .$Case_AcquisitionInfo == "MISSING INFORMATION" ~ "Unknown",
+      .$Case_AcquisitionInfo == "UNSPECIFIED EPI LINK" ~ "Unknown")) %>%
+  
   dplyr::group_by(Case_AcquisitionInfo) %>% 
   dplyr::summarise(n = n(), .groups = 'keep') %>% 
   dplyr::ungroup() %>% 
   data.frame()
 
-acqBreakdown$Case_AcquisitionInfo <- trimws(acqBreakdown$Case_AcquisitionInfo)
-
-acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "OB", "Outbreak Related", acqBreakdown$Case_AcquisitionInfo)
-acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "CC", "Close Contact", acqBreakdown$Case_AcquisitionInfo)
-acqBreakdown$Case_AcquisitionInfo <- ifelse(acqBreakdown$Case_AcquisitionInfo == "Travel", "Travel", acqBreakdown$Case_AcquisitionInfo)
-
-
-acqBreakdown$colors <- c("#E01E5A", "#4285F4", "#767676", "#0F9D58", "#F4B400", "#0F9D58")
+acqBreakdown$colors <- c("#E01E5A", "#F4B400", "#25D366", "#C0C0C0")
 ```
 
 
@@ -518,7 +666,7 @@ Row
 
 ### Travel Related Cases 
 ```{r}
-valueBox(paste(round(sum(TargetPHU$Case_AcquisitionInfo == "Travel")/nrow(TargetPHU)*100, 1), "%"), icon = "ion-plane")
+valueBox(paste(round(sum(TargetPHU$Case_AcquisitionInfo == "TRAVEL")/nrow(TargetPHU)*100, 1), "%"), icon = "ion-plane")
 ```
 
 ### Close Contact Cases 
@@ -536,195 +684,328 @@ Row {.tabset .tabset-fade}
 
 ### <b> Breakdown </b> 
 ```{r}
-fig <- plot_ly(acqBreakdown, labels = ~Case_AcquisitionInfo, values = ~n, type = 'pie',
+TargetPHU %>% 
+  
+    dplyr::mutate(Case_AcquisitionInfo = case_when(
+      .$Case_AcquisitionInfo == "OB" ~ "Outbreak Related", 
+      .$Case_AcquisitionInfo == "CC" ~ "Close Contact",
+      .$Case_AcquisitionInfo == "TRAVEL" ~ "Travel",
+      .$Case_AcquisitionInfo == "NO KNOWN EPI LINK" ~ "Unknown",
+      .$Case_AcquisitionInfo == "MISSING INFORMATION" ~ "Unknown",
+      .$Case_AcquisitionInfo == "UNSPECIFIED EPI LINK" ~ "Unknown")) %>%
+  
+  dplyr::group_by(Case_AcquisitionInfo) %>% 
+  dplyr::summarise(n = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(Case_AcquisitionInfo = toupper(Case_AcquisitionInfo)) %>% 
+  data.frame() %>% 
+
+
+plot_ly(labels = ~Case_AcquisitionInfo, 
+        values = ~n, 
+        type = 'pie',
         textposition = 'inside',
         textinfo = 'label+percent',
         insidetextfont = list(color = '#FFFFFF'),
-        hoverinfo = 'text',
-        #text = ~paste(n, ' cases'),
         text = ~paste(Case_AcquisitionInfo, '<br>', 
-                     format(n, nsmall = 0, big.mark = ","), ' cases', sep = ""),
+                      format(n, nsmall = 0, big.mark = ","), ' cases', sep = ""),
+        hoverinfo = 'text',
         
-        marker = list(colors = ~colors,
+        marker = list(colors = c("#E01E5A", "#F4B400", "#25D366", "#C0C0C0"),
                       line = list(color = '#FFFFFF', width = 1)),
-        #The 'pull' attribute can also be used to create space between the sectors
-        showlegend = FALSE)
-
-fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-
-fig
+               showlegend = FALSE) %>% 
+  
+  layout(xaxis = list(showgrid = FALSE, 
+                      zeroline = FALSE, 
+                      showticklabels = FALSE),
+         
+         yaxis = list(showgrid = FALSE, 
+                      zeroline = FALSE, 
+                      showticklabels = FALSE))
 ``` 
 
-### <b> Case Acquisitions over time </b> 
+### <b> Daily Acquisitions </b> 
 
 ```{r}
-acq_daily <- TargetPHU %>% 
-  dplyr::filter(Case_AcquisitionInfo != "No Epi-link") %>% 
-  dplyr::filter(Case_AcquisitionInfo != "No Info-Missing") %>% 
-  dplyr::filter(Case_AcquisitionInfo != "No Info-Unk") %>% 
-  dplyr::select(Row_ID,Case_Reported_Date, Case_AcquisitionInfo) %>% 
-  group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
-  summarise(count = n()) %>% 
-  spread(Case_AcquisitionInfo, count, fill = 0) %>% 
-  as.data.frame()
-
-
-acq_daily <- acq_daily %>% 
-  dplyr::mutate(CC_csum = cumsum(CC), 
-                OB_csum = cumsum(OB), 
-                Travel_csum = cumsum(Travel), 
-                
-                #getting rates 
-                TotalCases = as.integer(sum(CC_csum, OB_csum, Travel_csum)), 
-                CC_Pct = round(CC_csum/TotalCases * 100, 1),
-                OB_Pct = round(OB_csum/TotalCases * 100, 1), 
-                Travel_Pct = round(Travel_csum/TotalCases * 100, 1)
-                )
-
-
-
-fig <- plot_ly(x = ~acq_daily$Case_Reported_Date, y = ~acq_daily$CC, type = 'bar', name = 'Close Contact', 
-               marker = list(color = '#E01E5A'))
-
-fig <- fig %>% add_trace(x = ~acq_daily$Case_Reported_Date, y = ~acq_daily$OB, name = 'Outbreak Related', 
-                         marker = list(color = '#F4B400'))
-
-fig <- fig %>% add_trace(x = ~acq_daily$Case_Reported_Date, y = ~acq_daily$Travel, name = 'Travel', 
-                         marker = list(color ='#25D366'))
-
-fig <- fig %>% layout(title = "", 
-                      xaxis = list(title = ''),
-                      yaxis = list(title = 'Daily Cases'), 
-                      hovermode = "x unified",
-                      barmode = 'stack') %>% 
+TargetPHU %>% 
+  dplyr::select(Row_ID, Accurate_Episode_Date, Case_AcquisitionInfo) %>% 
   
-  layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time)))
+    dplyr::mutate(Case_AcquisitionInfo = case_when(
+      .$Case_AcquisitionInfo == "OB" ~ "Outbreak Related", 
+      .$Case_AcquisitionInfo == "CC" ~ "Close Contact",
+      .$Case_AcquisitionInfo == "TRAVEL" ~ "Travel",
+      .$Case_AcquisitionInfo == "NO KNOWN EPI LINK" ~ "Unknown",
+      .$Case_AcquisitionInfo == "MISSING INFORMATION" ~ "Unknown",
+      .$Case_AcquisitionInfo == "UNSPECIFIED EPI LINK" ~ "Unknown")) %>%
+  
+  group_by(Accurate_Episode_Date, Case_AcquisitionInfo) %>% 
+  summarise(count = n(), .groups = 'keep') %>%
+  dplyr::ungroup() %>% 
+  spread(Case_AcquisitionInfo, count, fill = 0) %>% 
+  as.data.frame() %>% 
 
-fig
+plot_ly(x = ~Accurate_Episode_Date, 
+        y = ~`Close Contact`, type = 'bar', 
+        name = 'Close Contact', 
+        marker = list(color = '#E01E5A')) %>% 
+  
+  add_trace(y = ~`Outbreak Related`, name = 'Outbreak Related', marker = list(color = '#F4B400')) %>% 
+  
+  add_trace(y = ~Travel, name = 'Travel', marker = list(color ='#25D366'))%>% 
+  
+  add_trace(y = ~Unknown, 
+            name = "Unknown", marker = list(color = "#DCDCDC")) %>% 
+  
+  layout(title = "", 
+         xaxis = list(title = '', 
+                      rangeselector = list(buttons = buttons_time)),
+         yaxis = list(title = 'Frequency (n)'), 
+         hovermode = "x unified",
+         barmode = 'stack',
+         legend=list(title=list(text='<b> Case Acquisition Type: </b>')))  
 ```
 
-### <b> Acquisition Compositions Over Time </b> 
+### <b> Acquisition Composition </b> 
+
+### <b> Acquisition Proportions </b> 
 
 ```{r}
-cacot <- TargetPHU %>% 
-  dplyr::filter(Case_AcquisitionInfo != "No Epi-link") %>% 
-  dplyr::filter(Case_AcquisitionInfo != "No Info-Missing") %>% 
-  dplyr::filter(Case_AcquisitionInfo != "No Info-Unk") %>% 
-  dplyr::select(Row_ID,Case_Reported_Date, Case_AcquisitionInfo) %>% 
-  group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
-  summarise(count = n()) %>% 
-  spread(Case_AcquisitionInfo, count, fill = 0) %>% 
-  as.data.frame() 
-
-cacot <- merge(x = cacot, y = dailyPHU[ , c("Case_Reported_Date", "Cases")], by = "Case_Reported_Date")
-cacot <- cacot %>% 
-  dplyr::rename(TotalCases = Cases) %>% 
-  dplyr::group_by(Case_Reported_Date) %>% 
-  dplyr::mutate(CC_Pct = round(CC/TotalCases*100,1), 
-                TR_Pct = round(Travel/TotalCases * 100, 1), 
-                OB_Pct = round(OB/TotalCases * 100, 1), 
-                MI_Pct = round(`Missing Information`/TotalCases * 100, 1), 
-                NKEL_Pct = round(`No known epi link`/TotalCases * 100, 1), 
-                UEL_Pct = round(`Unspecified epi link` / TotalCases * 100, 1)
-  ) %>% 
+TargetPHU %>% 
+  dplyr::select(Accurate_Episode_Date, Case_AcquisitionInfo) %>%
+  
+  dplyr::mutate(Case_AcquisitionInfo = case_when(
+    .$Case_AcquisitionInfo == "OB" ~ "Outbreak Related", 
+    .$Case_AcquisitionInfo == "CC" ~ "Close Contact",
+    .$Case_AcquisitionInfo == "TRAVEL" ~ "Travel",
+    .$Case_AcquisitionInfo == "NO KNOWN EPI LINK" ~ "Unknown",
+    .$Case_AcquisitionInfo == "MISSING INFORMATION" ~ "Unknown",
+    .$Case_AcquisitionInfo == "UNSPECIFIED EPI LINK" ~ "Unknown")) %>%
+  
+  dplyr::mutate(Month_Yr = format(as.Date(Accurate_Episode_Date), "%Y-%m")) %>% 
+  dplyr::group_by(Month_Yr, Case_AcquisitionInfo) %>% 
+  dplyr::summarise(count = n(), .groups = 'keep') %>%
   dplyr::ungroup() %>% 
-  data.frame()
+  tidyr::pivot_wider(names_from = Case_AcquisitionInfo, 
+                     values_from = count,
+                     values_fill = 0) %>%   
+  as.data.frame()  %>% 
+  #computes Rowise sums for column via index 
+  dplyr::mutate(Total=Reduce("+",.[2:5])) %>% 
+  #compute frquency (%) 
+  dplyr::mutate(cc_Pct = round((`Close Contact` / Total)*100,1), 
+                ob_Pct = round((`Outbreak Related` / Total)*100,1),
+                TR_Pct = round((Travel / Total)*100,1),
+                unkn_pct = round((Unknown / Total)*100,1)) %>% 
+  
 
-plot_ly(data = cacot, x = ~Case_Reported_Date, y = ~CC_Pct, 
-        type = 'scatter', mode = 'markers', 
-        name = "Close Contact", 
-        marker = list(color = "#E01E5A", width = 1), 
-        
-        transforms = list(list(type = 'filter', 
-                               target = 'y',
-                               operation = '!=', 
-                               value = 0
-                               ))) %>% 
+  #dplyr::select(Accurate_Episode_Date, cc_Pct, ob_Pct, TR_Pct, unkn_pct) %>% 
+  plot_ly(x = ~Month_Yr, 
+          y = ~cc_Pct, 
+          name = "Close Contact",
+          type = 'bar', 
+          text = ~paste(Month_Yr, "<br>",cc_Pct, " % Close Contact (n = ", `Close Contact`, ")",sep = ""), 
+          hoverinfo = "text", 
+          marker = list(color = '#FF5959')) %>% 
   
-  add_trace(y = ~TR_Pct, name = "Travel", 
-            marker = list(color = "#25D366", width = 1)) %>% 
+  add_trace(y = ~unkn_pct, 
+            type = 'bar', 
+            name = "Unknown", 
+            text = ~paste(Month_Yr, "<br>",unkn_pct, " % Unknown (n = ", Unknown , ")", sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#DCDCDC')) %>% 
   
-  add_trace(y = ~OB_Pct, name = "Outbreak", 
-            marker = list(color = "#F4B400", width = 1)) %>% 
+  add_trace(y = ~ob_Pct, 
+            type = 'bar', 
+            name = "Outbreak", 
+            text = ~paste(Month_Yr, "<br>",ob_Pct, " % Outbreak (n = ", `Outbreak Related`, ")", sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#F4B400')) %>% 
   
-  add_trace(y = ~MI_Pct, name = "Missing Info", 
-            marker = list(color = "#d7d7d7", width = 1)) %>% 
-  
-  add_trace(y = ~NKEL_Pct, name = "No known epi link", 
-            marker = list(color = "#d7d7d7", width = 1)) %>% 
-  
-  add_trace(y = ~UEL_Pct, name = "Unspecified epi link", 
-            marker = list(color = "#d7d7d7", width = 1)) %>% 
+  add_trace(y = ~TR_Pct, 
+            type = 'bar', 
+            name = "Travel", 
+            text = ~paste(Month_Yr, "<br>",TR_Pct, " % Travel (n = ", Travel, ")", sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#25D366')) %>% 
   
   layout(title = "",
-         yaxis = list(title = '<b> % of Daily Cases </b>'),
-         xaxis = list(title = ' ', rangeselector = list(buttons = buttons_time)),
-         hovermode = "x unified", 
+         xaxis = list(type = 'date', 
+                      tickformat = "%B <br>%Y",
+                      title = "",  
+                      rangeselector = list(buttons = buttons_time)), 
+         yaxis = list(title = "Acquistion Proportion (%)",
+                      dtick = 25, 
+                      tick0 = 0.00, 
+                      tickmode = "linear"), 
+         barmode = 'stack',
+         hovermode = "y-unified", 
          hoverlabel=list(bgcolor="black"),
-         paper_bgcolor='transparent')
+         legend = list(title = list(text = '<b> Case Acquisition Type: </b>')))  
+  
 ```
 
 
-### <b> Cumulative Acquisitions </b> 
-```{r}
-plot_ly(acq_daily, x = ~Case_Reported_Date, y = ~OB_csum, type = 'scatter', mode = 'none', fill = 'tozeroy', 
-        name = 'Outbreak', 
-        fillcolor = 'rgba(244, 180, 0, 0.7)',
+### <b> Overall Acquisitions (Linear) </b> 
+```{r cumacq}
+TargetPHU %>% 
+  dplyr::select(Row_ID,Case_Reported_Date, Case_AcquisitionInfo) %>%
+  
+    dplyr::mutate(Case_AcquisitionInfo = case_when(
+      .$Case_AcquisitionInfo == "OB" ~ "Outbreak Related", 
+      .$Case_AcquisitionInfo == "CC" ~ "Close Contact",
+      .$Case_AcquisitionInfo == "TRAVEL" ~ "Travel",
+      .$Case_AcquisitionInfo == "NO KNOWN EPI LINK" ~ "Unknown",
+      .$Case_AcquisitionInfo == "MISSING INFORMATION" ~ "Unknown",
+      .$Case_AcquisitionInfo == "UNSPECIFIED EPI LINK" ~ "Unknown")) %>%
+  
+  dplyr::group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
+  dplyr::summarise(count = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  tidyr::spread(Case_AcquisitionInfo, count, fill = 0) %>% 
+  as.data.frame() %>% 
+  
+  #adding cumulative counts 
+  dplyr::mutate(CC_csum = cumsum(`Close Contact`), 
+                OB_csum = cumsum(`Outbreak Related`), 
+                Travel_csum = cumsum(Travel),
+                Unknown_csum = cumsum(`Unknown`)) %>% 
+  tidyr::drop_na(Case_Reported_Date) %>% 
+
+#acq_daily <- na.omit(acq_daily, cols = "Case_Reported_Date")
+
+plot_ly(x = ~Case_Reported_Date, 
+        y = ~CC_csum, 
+        type = 'scatter', mode = 'none', fill = 'tozeroy', 
+        name = 'Close Contact', 
+        fillcolor = 'rgba(224, 30, 90, 0.7)',
         opacity = 0.8) %>% 
   
-  
-  add_trace(x = ~Case_Reported_Date,y = ~CC_csum, name = "Close Contact", fill = 'tozeroy',
-            fillcolor = 'rgba(224, 30, 90, 0.7)',
+  add_trace(y = ~Unknown_csum, 
+            name = "Uknown", 
+            fill = 'tozeroy',
+            fillcolor = 'rgba(220, 220, 220, 0.7)',
             opacity = 0.8) %>% 
   
-  add_trace(x = ~Case_Reported_Date,y = ~Travel_csum, name = "Travel", fill = 'tozeroy',
+  add_trace(y = ~OB_csum, 
+            name = "Outbreak", 
+            fill = 'tozeroy',
+            fillcolor = 'rgba(244, 180, 0, 0.7)',
+            opacity = 0.8) %>% 
+  
+  add_trace(y = ~Travel_csum, 
+            name = "Travel", 
+            fill = 'tozeroy',
             fillcolor = 'rgba(37, 211, 102, 0.7)',
             opacity = 0.8) %>% 
   
   layout(hovermode = 'x-unified', 
-         xaxis = list(title = ""), 
-         yaxis = list(title = "Cases")) %>% 
+         xaxis = list(title = "", rangeselector = list(buttons = buttons_time)), 
+         yaxis = list(title = "Cumulative Totals"),
+         legend=list(title=list(text='<b> Case Acquisition Type: </b>')))
+```
+
+### <b> Overall Acquisitions (Log) </b>
+```{r}
+TargetPHU %>% 
+  dplyr::select(Row_ID,Case_Reported_Date, Case_AcquisitionInfo) %>% 
   
-  layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time)))
+    dplyr::mutate(Case_AcquisitionInfo = case_when(
+      .$Case_AcquisitionInfo == "OB" ~ "Outbreak Related", 
+      .$Case_AcquisitionInfo == "CC" ~ "Close Contact",
+      .$Case_AcquisitionInfo == "TRAVEL" ~ "Travel",
+      .$Case_AcquisitionInfo == "NO KNOWN EPI LINK" ~ "Unknown",
+      .$Case_AcquisitionInfo == "MISSING INFORMATION" ~ "Unknown",
+      .$Case_AcquisitionInfo == "UNSPECIFIED EPI LINK" ~ "Unknown")) %>%
+  
+  dplyr::group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
+  dplyr::summarise(count = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  tidyr::spread(Case_AcquisitionInfo, count, fill = 0) %>% 
+  as.data.frame() %>% 
+  
+  #adding cumulative counts 
+  dplyr::mutate(CC_csum = cumsum(`Close Contact`), 
+                OB_csum = cumsum(`Outbreak Related`), 
+                Travel_csum = cumsum(Travel),
+                Unknown_csum = cumsum(`Unknown`)) %>% 
+  tidyr::drop_na(Case_Reported_Date) %>% 
+
+#acq_daily <- na.omit(acq_daily, cols = "Case_Reported_Date")
+
+plot_ly(x = ~Case_Reported_Date, 
+        y = ~CC_csum, 
+        type = 'scatter', mode = 'none', fill = 'tozeroy', 
+        name = 'Close Contact', 
+        fillcolor = 'rgba(224, 30, 90, 0.7)',
+        opacity = 0.8) %>% 
+  
+  add_trace(y = ~Unknown_csum, 
+            name = "Uknown", 
+            fill = 'tozeroy',
+            fillcolor = 'rgba(220, 220, 220, 0.7)',
+            opacity = 0.8) %>% 
+  
+  add_trace(y = ~OB_csum, 
+            name = "Outbreak", 
+            fill = 'tozeroy',
+            fillcolor = 'rgba(244, 180, 0, 0.7)',
+            opacity = 0.8) %>% 
+  
+  add_trace(y = ~Travel_csum, 
+            name = "Travel", 
+            fill = 'tozeroy',
+            fillcolor = 'rgba(37, 211, 102, 0.7)',
+            opacity = 0.8) %>% 
+  
+  layout(hovermode = 'x-unified', 
+         xaxis = list(title = "", rangeselector = list(buttons = buttons_time)), 
+         yaxis = list(title = "Cumulative Totals (Log)", type = "log"),
+         legend=list(title=list(text='<b> Case Acquisition Type: </b>')))
 ```
 
 ### <b> Heatmaps </b> 
 
 ```{r}
-acq_daily <- TargetPHU %>% 
-  dplyr::select(Row_ID,Case_Reported_Date, Case_AcquisitionInfo) %>% 
-  group_by(Case_Reported_Date, Case_AcquisitionInfo) %>% 
-  summarise(count = n()) %>% 
+TargetPHU %>% 
+  dplyr::select(Row_ID, Accurate_Episode_Date, 
+                Case_AcquisitionInfo) %>% 
+  
+    dplyr::mutate(Case_AcquisitionInfo = case_when(
+      .$Case_AcquisitionInfo == "OB" ~ "Outbreak Related", 
+      .$Case_AcquisitionInfo == "CC" ~ "Close Contact",
+      .$Case_AcquisitionInfo == "TRAVEL" ~ "Travel",
+      .$Case_AcquisitionInfo == "NO KNOWN EPI LINK" ~ "Unknown",
+      .$Case_AcquisitionInfo == "MISSING INFORMATION" ~ "Unknown",
+      .$Case_AcquisitionInfo == "UNSPECIFIED EPI LINK" ~ "Unknown")) %>%
+  
+  dplyr::group_by(Accurate_Episode_Date, 
+                  Case_AcquisitionInfo) %>% 
+  
+  dplyr::summarise(count = n(), .groups = 'keep') %>% 
   dplyr::ungroup() %>% 
-  as.data.frame()
+  data.frame() %>% 
+  
+  dplyr::mutate(Case_AcquisitionInfo = factor(Case_AcquisitionInfo, 
+                                              levels = unique(Case_AcquisitionInfo)[order(count,decreasing = F)]))  %>% 
 
-acq_daily$Case_AcquisitionInfo <- factor(acq_daily$Case_AcquisitionInfo, 
-                                      levels = unique(acq_daily$Case_AcquisitionInfo)[order(acq_daily$count, decreasing = FALSE)])
-
-plot_ly(data = acq_daily, 
-        x = ~Case_Reported_Date, 
+plot_ly(x = ~Accurate_Episode_Date, 
         y = ~Case_AcquisitionInfo, 
         z = ~count, 
         type = "heatmap",
         #colors = colorRamp(c("Black","Blue", "Red")),
-        text = ~paste(acq_daily$Case_AcquisitionInfo, "<br>", 
-                       acq_daily$Case_Reported_Date,
-                       "<br>", acq_daily$count, " cases",
-                       sep = ""), 
+        text = ~paste("<b>", Case_AcquisitionInfo, "</b>", "<br>",
+                      Accurate_Episode_Date,  
+                      "<br>", count, " cases",
+                      sep = ""), 
         hoverinfo = "text", 
         
         showlegend = F, 
-        showscale = FALSE) %>% 
+        showscale = T, 
+        colorbar = list(title = "Case Count:")) %>% 
   
   layout(title = "", 
-         
-         xaxis = list(title = "", rangeselector = list(
-           buttons = buttons_time)),
+         xaxis = list(title = "", rangeselector = list(buttons = buttons_time)),
          yaxis = list(title = ""),
-         
          barmode = 'stack', 
          hovermode = 'x-unified', 
          hoverlabel=list(bgcolor="black"), 
@@ -737,38 +1018,28 @@ plot_ly(data = acq_daily,
 Demographics
 =====================================
 
-```{r}
-ages <- TargetPHU %>% 
-  dplyr::group_by(Age_Group) %>% 
-  dplyr::summarise(n = n(), .groups = 'keep') %>% 
-  dplyr::ungroup() %>% 
-  data.frame()
-
-#breakdown by gender 
-genders <- TargetPHU %>% 
-  dplyr::group_by(Client_Gender) %>% 
-  dplyr::summarise(n = n(), .groups = 'keep') %>% 
-  dplyr::ungroup() %>% 
-  data.frame() 
-```
-
 Row {.tabset .tabset-fade}
 -------------------------------------
 
 ### <b> Age Breakdown Pie </b> 
 ```{r}
-ages$Age_Group <- ordered(ages$Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))
+TargetPHU %>% 
+  dplyr::group_by(Age_Group) %>% 
+  dplyr::summarise(n = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  data.frame() %>% 
 
-plot_ly(ages, 
-        labels = ~Age_Group, 
+plot_ly(labels = ~Age_Group, 
         values = ~n, 
         type = 'pie',
         textposition = 'inside',
         textinfo = 'label+percent',
         insidetextfont = list(color = '#FFFFFF'),
         hoverinfo = 'text',
-        text = ~paste(format(n, nsmall = 0, big.mark = ","), ' Cases'),
-               
+        text = ~paste("Age Group: ", Age_Group, "<br>", 
+                      format(n, big.mark = ","), ' Cases', 
+                      sep = " "),
+        
         marker = list(colors = ~colors,
                       line = list(color = '#FFFFFF', width = 1)),
         showlegend = FALSE) %>% 
@@ -779,121 +1050,238 @@ plot_ly(ages,
 
 ### <b> Age Breakdown Treemap </b> 
 ```{r}
-fig <- plot_ly(data = ages, 
-        labels = ~Age_Group, 
-        parents = NA, 
-        values = ~n, 
-        type = 'treemap', 
-        domain = list(column=0), 
-        marker = list(colorscale = 'Rainbow', reversescale = T),
-        textposition = 'inside',
-        textinfo = 'label',
-        insidetextfont = list(color = '#FFFFFF', size = 20),
-        hoverinfo = 'text',
-        text = ~paste(Age_Group,':', n, 'Total Cases')) 
+TargetPHU %>% 
+  dplyr::group_by(Age_Group) %>% 
+  dplyr::summarise(n = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  data.frame() %>% 
 
-fig <- fig %>% 
+  plot_ly(labels = ~Age_Group, 
+          parents = NA, 
+          values = ~n, 
+          type = 'treemap', 
+          domain = list(column=0), 
+          marker = list(colorscale = 'Rainbow', reversescale = F),
+          textposition = 'inside',
+          textinfo = 'label',
+          insidetextfont = list(color = '#FFFFFF', size = 20),
+          hoverinfo = 'text',
+          text = ~paste(Age_Group,':', format(n, big.mark = ","), 'Total Cases')) %>% 
   
   layout(plot_bgcolor = 'black', 
          paper_bgcolor = 'black', 
          grid = list(columns = 1, rows = 1))
-
-fig
 ```
 
 ### <b> Daily Cases by Age </b>
 
 ```{r}
-daily_ages <- TargetPHU %>% 
-  dplyr::filter(!is.na(Case_Reported_Date)) %>% 
-  dplyr::group_by(Case_Reported_Date, Age_Group) %>% 
+TargetPHU %>% 
+  dplyr::filter(!is.na(Accurate_Episode_Date)) %>% 
+  dplyr::filter(!Accurate_Episode_Date == "2019-12-25") %>% 
+  dplyr::group_by(Accurate_Episode_Date, Age_Group) %>% 
   dplyr::count(name = "n") %>% 
   dplyr::ungroup() %>% 
-  data.frame()
+  data.frame() %>% 
+  dplyr::mutate(Age_Group = ordered(Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))) %>% 
+  dplyr::arrange(Accurate_Episode_Date, Age_Group) %>% 
 
-daily_ages$Age_Group <- ordered(daily_ages$Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))
-
-daily_ages <- daily_ages %>% 
-  dplyr::arrange(Case_Reported_Date, Age_Group)
-
-
-
-plot_ly(daily_ages, 
-        x = ~Case_Reported_Date, 
+plot_ly(x = ~Accurate_Episode_Date, 
         y = ~n, 
         type = 'bar', 
         color = ~Age_Group, 
-        colors = "Paired") %>% 
+        colors = "Paired", 
+        text = ~paste(Accurate_Episode_Date, "<br>",
+                      format(n, big.mark = ","), " Cases", "<br>",
+                      "Age Group: ", Age_Group, sep = ""), 
+        hoverinfo = "text") %>% 
   
   layout(barmode = "stack", 
          hovermode = 'x-unified', 
-         xaxis = list(title = ""), 
-         yaxis = list(title = "Cases")) %>% 
-  
-  layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time)))
+         xaxis = list(title = "", rangeselector = list(buttons = buttons_time)), 
+         yaxis = list(title = "Cases (n)"), 
+         legend=list(title=list(text='<b> Age Group </b>'))) 
 ```
 
-### <b> Cumulative Cases by Age Group </b>
-```{r csumbyAge}
-daily_ages <- daily_ages %>% 
+### <b> Age Composition </b> 
+```{r}
+TargetPHU %>% 
+  dplyr::filter(!is.na(Accurate_Episode_Date)) %>% 
+  dplyr::filter(!Accurate_Episode_Date == "2019-12-25") %>%
+  dplyr::filter(!Age_Group == "") %>% 
+  dplyr::group_by(Accurate_Episode_Date, Age_Group) %>% 
+  dplyr::count(name = "n") %>% 
+  dplyr::ungroup() %>% 
+  data.frame() %>% 
+  dplyr::mutate(Age_Group = ordered(Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))) %>% 
+  tidyr::spread(Age_Group, n, fill = 0) %>% 
+  mutate(Total=Reduce("+",.[2:10]), 
+         lessTwenty_Pct = round((`<20`/Total)*100,1), 
+         twenty_Pct = round((`20s`/Total)*100,1), 
+         thirty_Pct = round((`30s`/Total)*100,1), 
+         forty_Pct = round((`40s`/Total)*100,1),
+         fifty_Pct = round((`50s`/Total)*100,1),
+         sixty_Pct = round((`60s`/Total)*100,1),
+         seventy_Pct = round((`70s`/Total)*100,1),
+         eighty_Pct = round((`80s`/Total)*100,1),
+         ninety_Pct = round((`90s`/Total)*100,1)) %>% 
+  
+    dplyr::filter(Accurate_Episode_Date >= "2020-03-04") %>%
+  
+#RColorBrewer::brewer.pal(n = 9, name = "Paired")
+plot_ly(x = ~Accurate_Episode_Date, 
+        y = ~ninety_Pct, 
+        name = "90s",
+        type = 'bar', 
+        text = ~paste("90s", "<br>", ninety_Pct, "%",  " (n = ", `90s`, ")",sep = ""), 
+        hoverinfo = "text", 
+        marker = list(color = '#CAB2D6')) %>% 
+  
+  add_trace(y = ~eighty_Pct, 
+            name = "80s",
+            type = 'bar', 
+            text = ~paste("80s", "<br>", eighty_Pct, "%",  " (n = ", `80s`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#FF7F00')) %>% 
+  
+  add_trace(y = ~seventy_Pct, 
+            name = "70s",
+            type = 'bar', 
+            text = ~paste("70s", "<br>", seventy_Pct, "%",  " (n = ", `70s`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#FDBF6F')) %>%
+  
+  add_trace(y = ~sixty_Pct, 
+            name = "60s",
+            type = 'bar', 
+            text = ~paste("60s", "<br>", sixty_Pct, "%",  " (n = ", `60s`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#E31A1C')) %>%
+  
+  add_trace(y = ~fifty_Pct, 
+            name = "50s",
+            type = 'bar', 
+            text = ~paste("50s", "<br>", fifty_Pct, "%",  " (n = ", `50s`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#FB9A99')) %>%
+  
+  add_trace(y = ~forty_Pct, 
+            name = "40s",
+            type = 'bar', 
+            text = ~paste("40s", "<br>", forty_Pct, "%",  " (n = ", `40s`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#33A02C')) %>%
+  
+  add_trace(y = ~thirty_Pct, 
+            name = "30s",
+            type = 'bar', 
+            text = ~paste("30s", "<br>", thirty_Pct, "%",  " (n = ", `30s`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#B2DF8A')) %>%
+  
+  add_trace(y = ~twenty_Pct, 
+            name = "20s",
+            type = 'bar', 
+            text = ~paste("20s", "<br>", twenty_Pct, "%",  " (n = ", `20s`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#1F78B4')) %>%
+  
+  add_trace(y = ~lessTwenty_Pct, 
+            name = "<20",
+            type = 'bar', 
+            text = ~paste("<20s", "<br>", lessTwenty_Pct, "%",  " (n = ", `<20`, ")",sep = ""), 
+            hoverinfo = "text", 
+            marker = list(color = '#A6CEE3')) %>%
+  
+  layout(title = "",
+         xaxis = list(title = "",  
+                      rangeselector = list(buttons = buttons_time)), 
+         yaxis = list(title = "Frequency (%)",
+                      dtick = 25, 
+                      tick0 = 0.00, 
+                      tickmode = "linear"), 
+         barmode = 'stack',
+         hovermode = "y-unified", 
+         hoverlabel=list(bgcolor="black"),
+         legend = list(title = list(text = '<b> Age: </b>')))   
+```
+
+
+### <b> Overall by Age Group </b>
+
+```{r csumbyAgeLog}
+TargetPHU %>% 
+  dplyr::filter(!is.na(Accurate_Episode_Date)) %>% 
+  dplyr::filter(!Accurate_Episode_Date == "2019-12-25") %>% 
+  dplyr::group_by(Accurate_Episode_Date, Age_Group) %>% 
+  dplyr::count(name = "n") %>% 
+  dplyr::ungroup() %>% 
+  data.frame() %>% 
+  dplyr::mutate(Age_Group = ordered(Age_Group, levels = c("<20", "20s", "30s", "40s", "50s", "60s", "70s", "80s", "90s"))) %>% 
+  dplyr::arrange(Accurate_Episode_Date, Age_Group) %>% 
   dplyr::group_by(Age_Group) %>%
   dplyr::mutate(csum = cumsum(n)) %>% 
   dplyr::ungroup() %>% 
-  data.frame()
+  dplyr::select(Accurate_Episode_Date, Age_Group, csum) %>% 
+  data.frame() %>% 
 
-plot_ly(daily_ages, x = ~Case_Reported_Date, y = ~csum, 
+plot_ly(x = ~Accurate_Episode_Date, y = ~csum, 
         type = 'scatter', mode = 'lines', fill = 'tozeroy', 
         color = ~Age_Group, 
-        colors = "Paired") %>% 
+        colors = "Paired", 
+        text = ~paste(Accurate_Episode_Date, "<br>",
+                      "Age Group: ", Age_Group, "<br>",
+                      format(csum, big.mark = ","), " Total Cases to Date", sep = ""), 
+        hoverinfo = "text") %>% 
   
   layout(hovermode = 'x-unified', 
-         xaxis = list(title = ""), 
-         yaxis = list(title = "Cases")) %>% 
-  
-  layout(xaxis = list(rangeselector = list(
-    buttons = buttons_time)))
+         xaxis = list(title = "", rangeselector = list(buttons = buttons_time)), 
+         yaxis = list(title = "Cumulative Cases (Log)", type = "log"), 
+         legend=list(title=list(text='<b> Age Group: </b>')))
 ```
 
 
 ### <b> Gender Breakdown </b>
 ```{r}
-colors <- c('#c37ef0', "#54c3ff")
+TargetPHU %>%
+  dplyr::filter(Client_Gender == "FEMALE" | Client_Gender == "MALE") %>% 
+  dplyr::group_by(Client_Gender) %>% 
+  dplyr::summarise(n = n(), .groups = 'keep') %>% 
+  dplyr::ungroup() %>% 
+  data.frame() %>% 
 
-fig <- plot_ly(genders, labels = ~Client_Gender, values = ~n, type = 'pie',
-               textposition = 'inside',
-               textinfo = 'label+percent',
-               insidetextfont = list(color = '#FFFFFF'),
-               hoverinfo = 'text',
-               text = ~paste(format(n, nsmall = 0, big.mark = ","), ' cases'),
-               
-               marker = list(colors = ~colors,
-                             line = list(color = '#FFFFFF', width = 1)),
-               #The 'pull' attribute can also be used to create space between the sectors
-               showlegend = FALSE)
-
-fig <- fig %>% layout(xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
-                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
-
-fig
+plot_ly(labels = ~Client_Gender, values = ~n, type = 'pie',
+        textposition = 'inside',
+        textinfo = 'label+percent',
+        insidetextfont = list(color = '#FFFFFF'),
+        text = ~paste(format(n, nsmall = 0, big.mark = ","),' Total Cases'),
+        hoverinfo = 'text',
+        
+        marker = list(colors = c('#c37ef0', "#54c3ff"),
+                      line = list(color = '#FFFFFF', width = 1)),
+        showlegend = FALSE) %>% 
+  
+  layout(xaxis = list(showgrid = FALSE, 
+                      zeroline = FALSE, 
+                      showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
 ```
 
 ### <b> Daily Cases by Gender </b>
 ```{r}
-#daily cases by gender 
-daily_genders <- TargetPHU %>% 
-  dplyr::filter(!is.na(Case_Reported_Date)) %>% 
-  dplyr::filter(Client_Gender %in% c("MALE", "FEMALE")) %>% 
-  dplyr::group_by(Case_Reported_Date, Client_Gender) %>% 
+TargetPHU %>% 
+  dplyr::filter(!is.na(Accurate_Episode_Date)) %>% 
+  dplyr::filter(Client_Gender == "FEMALE" | Client_Gender == "MALE") %>% 
+  dplyr::group_by(Accurate_Episode_Date, Client_Gender) %>% 
   dplyr::count(name = "n") %>% 
   dplyr::ungroup() %>% 
-  dplyr::arrange(Case_Reported_Date, Client_Gender) %>% 
-  dplyr::mutate(HEX = case_when(Client_Gender == "MALE" ~ "#54c3ff", 
-                                Client_Gender == "FEMALE" ~ "#c37ef0")) %>% 
-  data.frame()
+  dplyr::mutate(HEX = case_when(Client_Gender == "MALE" ~ '#54c3ff', 
+                                Client_Gender == "FEMALE" ~ '#c37ef0')) %>%
+  dplyr::mutate(HEX = as.character(HEX)) %>% 
+  dplyr::arrange(desc(Accurate_Episode_Date)) %>% 
+  data.frame() %>% 
 
-plot_ly(data = daily_genders, 
-        x = ~Case_Reported_Date, 
+plot_ly(x = ~Accurate_Episode_Date, 
         y = ~n, 
         type = 'bar', 
         color = ~Client_Gender, 
@@ -902,29 +1290,73 @@ plot_ly(data = daily_genders,
   layout(barmode = "stack", 
          hovermode = 'x-unified', 
          xaxis = list(title = ""), 
-         yaxis = list(title = "Cases")) 
+         yaxis = list(title = "New Cases")) 
 ```
 
-### <b> Cumulative Cases by Gender </b> 
+### <b> Overall by Gender (Linear) </b> 
 ```{r}
-daily_genders <- daily_genders %>% 
+daily_genders_cum <- TargetPHU %>% 
+  dplyr::filter(!is.na(Accurate_Episode_Date)) %>% 
+  dplyr::filter(Client_Gender == "FEMALE" | Client_Gender == "MALE") %>% 
+  dplyr::group_by(Accurate_Episode_Date, Client_Gender) %>% 
+  dplyr::count(name = "n") %>% 
+  dplyr::ungroup() %>% 
+  dplyr::mutate(HEX = case_when(Client_Gender == "MALE" ~ '#54c3ff', 
+                                Client_Gender == "FEMALE" ~ '#c37ef0')) %>%
+  dplyr::mutate(HEX = as.character(HEX)) %>% 
+  dplyr::arrange(desc(Accurate_Episode_Date)) %>% 
+  data.frame() %>% 
+  dplyr::filter(!Accurate_Episode_Date == "2019-12-25") %>% 
+  dplyr::arrange(Accurate_Episode_Date)%>% 
   dplyr::group_by(Client_Gender) %>% 
-  dplyr::mutate(csum = cumsum(n))
+  dplyr::mutate(Total = cumsum(n)) %>% 
+  dplyr::mutate(HEX = as.character(HEX)) %>%
+  dplyr::ungroup() %>% 
+  data.frame()
 
-plot_ly(daily_genders, x = ~Case_Reported_Date, y = ~csum, 
-        type = 'scatter', mode = 'lines', fill = 'tozeroy', 
-        color = ~Client_Gender, 
-        colors = ~HEX) %>% 
+males <- daily_genders_cum[which(daily_genders_cum$Client_Gender == "MALE"), ]
+females <- daily_genders_cum[which(daily_genders_cum$Client_Gender == "FEMALE"), ]
+
+plot_ly(females, x = ~Accurate_Episode_Date,  y = ~Total,  type = 'scatter', mode = 'none', name = 'FEMALE', fill = 'tozeroy', 
+        fillcolor = 'rgba(195, 126, 240, 0.7)', 
+                text = ~paste("FEMALE:", format(Total, nsmall = 0, big.mark = ","), sep = " "), 
+                hoverinfo = 'text') %>% 
+  
+  
+  add_trace(data = males, x = ~Accurate_Episode_Date, y = ~Total, name = "MALE",
+            fillcolor = 'rgba(84, 195, 255, 0.7)', 
+            text = ~paste("MALE:", format(Total, nsmall = 0, big.mark = ","), sep = " "), 
+                hoverinfo = 'text') %>% 
   
   layout(hovermode = 'x-unified', 
          xaxis = list(title = ""), 
-         yaxis = list(title = "Cases")) %>% 
+         yaxis = list(title = "Total Cases")) %>% 
   
   layout(xaxis = list(rangeselector = list(
     buttons = buttons_time)))
 ```
 
+### <b> Overall by Gender (Log) </b> 
 
+```{r}
+plot_ly(females, x = ~Accurate_Episode_Date,  y = ~Total,  type = 'scatter', mode = 'none', name = 'FEMALE', fill = 'tozeroy', 
+        fillcolor = 'rgba(195, 126, 240, 0.7)', 
+        text = ~paste("FEMALE:", format(Total, nsmall = 0, big.mark = ","), sep = " "), 
+                hoverinfo = 'text') %>% 
+  
+  
+  add_trace(data = males, x = ~Accurate_Episode_Date, y = ~Total, name = "MALE",
+            fillcolor = 'rgba(84, 195, 255, 0.7)',
+            text = ~paste("MALE:", format(Total, nsmall = 0, big.mark = ","), sep = " "), 
+                hoverinfo = 'text') %>% 
+  
+  layout(hovermode = 'x-unified', 
+         xaxis = list(title = ""), 
+         yaxis = list(title = "Total Cases (Log)", type = "log")) %>% 
+  
+  layout(xaxis = list(rangeselector = list(
+    buttons = buttons_time)))
+```
 About this Site
 ===================================== 
 
